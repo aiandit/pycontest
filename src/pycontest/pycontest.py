@@ -3,6 +3,7 @@ import sys
 import time
 import random
 import math
+import gc
 
 from math import sin, asin, atan2, log, sqrt
 
@@ -73,6 +74,7 @@ class Benchmark:
         self.results += [res]
 
     def bench(self, func, *arg, **kw):
+        gc.collect()
         self.func = func
         self.results = []
         N = self.nwarm + self.nrun + self.ncool
@@ -163,7 +165,7 @@ class Contest:
         return self.myio.getvalue()
 
     def run(self, funcs, **kw_):
-        detail = 4
+        detail = kw_.get('detail', 10)
         Ns = [int(math.floor(10 ** (i/detail))) for i in range(20*detail)]
         Ns = list(dict.fromkeys(Ns).keys())
         inputszs = kw_.get('Ns', Ns)
@@ -217,6 +219,7 @@ class Contest:
                 break
 
             for fi, f in enumerate(funcs):
+                print('Contest', fi, f)
                 if self.bailout[fi]:
                     self.results[inp].append(None)
                     continue
