@@ -8,4 +8,4 @@ def getTest(bfun):
 
     return inner
 
-contest(getTest(sin), getTest(cos), getTest(sqrt))
+contest(dict(sin=getTest(sin), cos=getTest(cos), sqrt=getTest(sqrt)), name="Trig. test", outdir='out')

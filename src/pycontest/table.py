@@ -52,7 +52,7 @@ class Table:
             self.colScales = [colScale] * len(headers)
 
         if isinstance(unit, list) or isinstance(unit, tuple):
-            self.colUnits = units
+            self.colUnits = unit
         else:
             self.colUnits =  [unit] * len(headers)
 
@@ -75,11 +75,19 @@ class Table:
         self.fd = fd
 
     def writeTable(self, fd):
-        print('write!', self.data, self.names)
         self.setfd(fd)
         self.writeHeader()
         for i in range(len(self.data)):
             self.writeRow(self.data[i], self.names[i])
+
+    @property
+    def sep(self):
+        return self.sep_
+
+    @sep.setter
+    def sep(self, nv):
+        self.sep_ = nv
+        self.update()
 
     def update(self):
         self.lnFormat = self.sep.join(['%% %ds' % w for w in self.colWidths])
@@ -101,8 +109,9 @@ class Table:
     def writeLine(self, vline):
         self.write('%s\n' % vline)
 
-    def writeValues(self, values, name=None):
-        self.addRow(values, name=name)
+    def writeValues(self, values, name=None, add=False):
+        if add:
+            self.addRow(values, name=name)
         vstrs = self.fmtValues(values)
         if name:
             vstrs = tuple([name] + list(vstrs))
@@ -124,6 +133,7 @@ class Table:
         self.fd.write(res)
 
     def gets(self):
+        # print('gets', self.getData())
         outf = io.StringIO()
         self.writeTable(outf)
         return outf.getvalue()

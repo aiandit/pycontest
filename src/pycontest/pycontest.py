@@ -1,5 +1,6 @@
 import io
 import sys
+import os
 import time
 import random
 import math
@@ -74,7 +75,6 @@ class Benchmark:
         self.results += [res]
 
     def bench(self, func, *arg, **kw):
-        gc.collect()
         self.func = func
         self.results = []
         N = self.nwarm + self.nrun + self.ncool
@@ -125,11 +125,11 @@ class Benchmark:
 def displArgs(*args, **kw):
     print('Positional args:')
     for i, a in enumerate(args):
-        print(f'[{i}]: type={type(a).__name__}, len={len(a)}')
+        print(f'[{i}]: type={type(a).__name__}')
     if len(kw):
         print('Keyword args:')
         for i, (k, v) in enumerate(kw.items()):
-            print(f'{k} = type={type(v).__name__}, len={len(v)}')
+            print(f'{k} = type={type(v).__name__}')
 
 
 class MyIO:
@@ -152,11 +152,24 @@ class MyIO:
 
 class Contest:
 
-    def __init__(self):
-        pass
+    def __init__(self, **kw):
+        self.name = kw.get('name', '')
+        self.show = kw.get('show', True)
+        self.print = kw.get('print', True)
+        self.outdir = kw.get('outdir', '.')
+        self.timeout = kw.get('timeout', 1e-2)
+        self.echo = kw.get('echo', False)
+        self.verbose = kw.get('verbose', False)
 
     def report(self, res):
         self.results += [res]
+
+    def inputSizes(self, **kw):
+        detail = kw.get('detail', 4)
+        Ns = [int(math.floor(10 ** (i/detail))) for i in range(20*detail)]
+        Ns = list(dict.fromkeys(Ns).keys())
+        inputszs = kw.get('Ns', Ns)
+        return inputszs
 
     def inputList(self, N):
         return ([random.random() for i in range(N)],), {}
@@ -165,12 +178,10 @@ class Contest:
         return self.myio.getvalue()
 
     def run(self, funcs, **kw_):
-        detail = kw_.get('detail', 10)
-        Ns = [int(math.floor(10 ** (i/detail))) for i in range(20*detail)]
-        Ns = list(dict.fromkeys(Ns).keys())
-        inputszs = kw_.get('Ns', Ns)
-        timeout = kw_.get('timeout', 0.05)
-        echo = kw_.get('echo', None)
+        inputszs = self.inputSizes(**kw_)
+        timeout = kw_.get('timeout', self.timeout)
+        echo = kw_.get('echo', self.echo)
+        verbose = kw_.get('verbose', self.verbose)
 
         vectorize = kw_.get('vectorize', '')
 
@@ -181,10 +192,16 @@ class Contest:
         else:
             geninput = kw_.get('input', self.inputList)
 
-        print(f'input sizes = {inputszs}')
-        print(f'timeout = {Value(timeout,"s")}')
+        if verbose:
+            print(f'input sizes = {inputszs[0]}, {inputszs[1]}, ..., {inputszs[-1]}')
+            print(f'timeout = {Value(timeout,"s")}')
 
-        self.funcs = funcs
+        if isinstance(funcs, dict):
+            self.names = list(funcs.keys())
+            self.funcs = list(funcs.values())
+        else:
+            self.names = [f.__qualname__ for f in funcs]
+            self.funcs = funcs
         self.args = inputszs
         self.results = []
 
@@ -195,15 +212,16 @@ class Contest:
 
         self.myio = MyIO(echo=sys.stdout if echo else None)
 
-        scales = [1] + list(chain(*((1e3, 1e6) for i in range(3))))
-        tb = Table(
+        scales = [1] + list(chain(*((1e6, 1e6) for i in range(3))))
+        self.table = tb = Table(
             fd=self.myio,
             headers=['N', 'R', 'R std', 'W', 'W std', 'C', 'C std'],
             namehead='Func', colPrec=5, colScale=scales, unit='s')
-        print(tb)
+        if verbose > 1:
+            print(tb)
         tb.writeHeader()
 
-        self.bailout = [False] * len(funcs)
+        self.bailout = [False] * len(self.funcs)
 
         vnan = math.nan
 
@@ -218,11 +236,11 @@ class Contest:
                 print(ex)
                 break
 
-            for fi, f in enumerate(funcs):
-                print('Contest', fi, f)
+            for fi, f in enumerate(self.funcs):
                 if self.bailout[fi]:
                     self.results[inp].append(None)
                     continue
+                gc.collect()
                 bm = Benchmark(print=False, vectorize=vectorize)
                 bm.bench(f, *args, **kw)
                 self.results[inp].append(bm)
@@ -233,10 +251,10 @@ class Contest:
 #            for i in range(ninputs):
 #                print(f'results for inp. {i}: {self.results[inp]}')
 
-            [ tb.writeRow(
+            [ tb.addRow(
                 (psize, t.vpr.mean(), t.vpr.std(), t.vpw.mean(), t.vpw.std(), t.vpc.mean(), t.vpc.std())
                 if t is not None else (psize, vnan, vnan, vnan, vnan, vnan, vnan),
-                funcs[k].__qualname__)
+                self.names[k])
               for k, t in enumerate(self.results[inp]) ]
 
             self.bailout = [t is None or t.vpr.mean() > timeout for t in self.results[inp]]
@@ -248,52 +266,181 @@ class Contest:
 
     def plot(self):
 
+        self.plots = []
         rlist = [ f for f in self.results if len(f) ]
 
-        print('plot', len(rlist))
+        # print('plot', len(rlist))
 
         # plot
         fig, ax = plt.subplots()
         N = len(rlist)
         x = self.args[0:N]
 
-        print('plot', rlist)
-        print('plot lasr res', rlist[-1])
+        # print('plot', rlist)
+        # print('plot lasr res', rlist[-1])
         adisp, aunit = rlist[0][0].vpr.mean.getpair()
         plsc = adisp / rlist[0][0].vpr.mean()
 
         ntests = len(self.funcs)
         handles = []
-        fnames = [self.funcs[i].__qualname__ for i in range(ntests)]
+        fnames = [self.names[i] for i in range(ntests)]
 
         vnan = math.nan
 
+        def getSeries(i, rlist):
+            xinnan = [ j for j in range(N) if rlist[j][i] is not None ]
+            xnnan = [ x[j] for j in xinnan ]
+
+            y    = [ rlist[j][i].vpr.mean(plsc) for j in xinnan ]
+            yerr = [ rlist[j][i].vpr.std(plsc) for j in xinnan ]
+            xplt = [ x[j] for j in xinnan ]
+
+            return xplt, y, yerr
+
+
         for i in range(ntests):
 
-            y    = [ rlist[j][i].vpr.mean(plsc) if rlist[j][i] is not None else vnan for j in range(N) ]
-            yerr = [ rlist[j][i].vpr.std(plsc) if rlist[j][i] is not None else vnan for j in range(N) ]
+            xplt, y, yerr = getSeries(i, rlist)
+            # print('x', xplt, 'mean', y, 'std', yerr)
 
-            print('x', x, 'mean', y, 'std', yerr)
-
-            h1 = ax.errorbar(x, y, yerr, label=fnames[i])
+            h1 = ax.errorbar(xplt, y, yerr, label=fnames[i])
             handles += [h1]
 
             #        ax.set(xlim=(1, N+1), xticks=np.arange(1, N+1))
             #        ax.legend([h1], ['Results'])
-        print(fnames)
+        # print(fnames)
         plt.xscale('log')
         plt.yscale('log')
         plt.ylabel(f'Time ({aunit})')
         plt.xlabel('Input size N')
         ax.legend()
-        plt.show()
+        plt.title(f'{self.name} - Runtimes over input size N')
+        self.plots += [plt]
+
+
+        # plot
+        fig, ax = plt.subplots()
+
+        reltSums = [0]*ntests
+
+        for i in range(ntests):
+
+            xplt, y, yerr = getSeries(i, rlist)
+
+            reltSums[i] = 1e-9 * sum(y) / sum(xplt)
+            print('x', xplt, 'mean', y, 'std', yerr)
+            print('xsum', sum(xplt), 'ysum', sum(y), 'rel', reltSums[i])
+            # reltSums[i] = sum([ x[i] * y[i] for i in range(len(xplt)]) / sum(x)
+
+            y    = [ y[j]    / xplt[j] for j in range(len(xplt)) ]
+            yerr = [ yerr[j] / xplt[j] for j in range(len(xplt)) ]
+
+            h1 = ax.errorbar(xplt, y, yerr, label=fnames[i])
+            handles += [h1]
+
+            #        ax.set(xlim=(1, N+1), xticks=np.arange(1, N+1))
+            #        ax.legend([h1], ['Results'])
+
+        print(fnames, reltSums)
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.ylabel(f'Time ({aunit}) / N')
+        plt.xlabel('Input size N')
+        ax.legend()
+        plt.title(f'{self.name} - Relative runtimes per input size N over input size N')
+        self.plots += [plt]
+
+
+        inds = list(range(len(reltSums)))
+        inds = sorted(inds, key=lambda i: reltSums[i])
+
+        rank = [ self.names[i] for i in inds ]
+        rankTimes = [ reltSums[i] for i in inds ]
+        print(f'Performance ranking: {list(zip(rank, rankTimes))}')
+
+        winner = inds[0]
+        namewin = self.names[winner]
+        perfwin = reltSums[winner]
+        print(f'And the winner is cand. {winner}, {namewin}, ({self.funcs[winner]}) with {reltSums[winner]} s/N')
+
+        self.ranktb = Table(headers=('RelTime', 'Speedup'), colScale=(1e9, 1), unit=('s/N', ''), namehead='Name')
+        for i in range(len(inds)):
+            self.ranktb.addRow((reltSums[inds[i]], reltSums[inds[i]] / perfwin), self.names[inds[i]])
+
+        # plot
+        fig, ax = plt.subplots()
+
+        win_xplt, win_y, win_yerr = getSeries(winner, rlist)
+        print('win x', xplt, 'win mean', y, 'win std', yerr)
+
+        for i in range(ntests):
+
+            xplt, y, yerr = getSeries(i, rlist)
+            print('x', xplt, 'mean', y, 'std', yerr)
+
+            y =    [ y[j]    / win_y[j] for j in range(len(xplt)) ]
+            yerr = [ yerr[j] / win_y[j] for j in range(len(xplt)) ]
+
+            reltSums[i] = sum([ v for v in y ])
+
+            h1 = ax.errorbar(xplt, y, yerr, label=fnames[i])
+            handles += [h1]
+
+            #        ax.set(xlim=(1, N+1), xticks=np.arange(1, N+1))
+            #        ax.legend([h1], ['Results'])
+
+        print(fnames, reltSums)
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.ylabel(f'Time / Time[{namewin}]')
+        plt.xlabel('Input size N')
+        ax.legend()
+        plt.title(f'{self.name} - Runtimes relative to best results over input size N')
+        self.plots += [plt]
+
+        names = ['plot-times', 'plot-reltimes-N', 'plot-reltimes-best']
+        for i, p in enumerate(self.plots):
+            ofname = os.path.join(self.outdir, f'plt-{names[i]}.png')
+            print(f'Write PNG plot {i} to {ofname}')
+            p.savefig(ofname)
+
+        if self.show:
+            plt.show()
+
+    def printTables(self):
+        print('Performance results')
+        print(self.table.gets())
+        print('Contest Rank')
+        print(self.ranktb.gets())
+
+    def writeTable(self, tb, ofname):
+        bdir = self.outdir
+        if not os.path.exists(bdir):
+            os.mkdir(bdir)
+        resTable = os.path.join(bdir, f'{ofname}.txt')
+        if self.verbose:
+            print(f'Write TXT result table to {resTable}')
+        print(f'{tb.gets()}', file=open(resTable, 'w'))
+        resTable = os.path.join(bdir, f'{ofname}.txt')
+        if self.verbose:
+            print(f'Write CSV result table to {resTable}')
+        self.table.sep = ';'
+        print(f'{tb.gets()}', file=open(resTable, 'w'))
+
+    def writeResults(self):
+        self.writeTable(self.table, 'benchmark')
+        self.writeTable(self.ranktb, 'rank')
 
 def contest(*funcs, **kw):
-    c = Contest()
-    tbl = c.run(funcs, **kw)
-    plot = kw.get('plot', True)
-    if plot:
-        c.plot()
+    c = Contest(**kw)
+    if len(funcs) == 1:
+        tbl = c.run(funcs[0], **kw)
+    else:
+        tbl = c.run(funcs, **kw)
+    c.plot()
+    if c.print:
+        c.printTables()
+    c.writeResults()
     return tbl
 
 
