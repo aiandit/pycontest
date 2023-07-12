@@ -5,7 +5,7 @@ authors = [
   { name="Johannes Willkomm", email="jwillkomm@ai-and-it.de" },
 ]
 description = "Runtime benchmarking"
-readme = "README.md"
+readme = "README.txt"
 requires-python = ">=3.7"
 depends = [ "-rrequirements.txt", ]
 classifiers = [
