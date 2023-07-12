@@ -46,6 +46,7 @@ Table of Contents
 
   ┌────
   │ from pycontest import contest
+  │ import numpy as np
   │ 
   │ def fSumAll(l):
   │     return np.sum(l)

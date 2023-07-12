@@ -30,6 +30,7 @@ and likewise a ranking table.
 
 #+begin_src python
 from pycontest import contest
+import numpy as np
 
 def fSumAll(l):
     return np.sum(l)
