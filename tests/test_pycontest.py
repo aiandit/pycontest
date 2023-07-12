@@ -133,16 +133,20 @@ def getElemFTestList(bfun):
 
 class TestContest(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        cls.verbose = 1
+
     def test_contest(self):
 
         cfs = [getElemFTestList(f) for f in [sin, cos, sqrt]]
-        contest(*cfs, show=False, timeout=1e-3)
+        contest(*cfs, show=False, timeout=1e-3, verbose=self.verbose)
 
 
     def test_contest2(self):
 
         cfs = [sin, cos, sqrt]
-        res = contest(*cfs, show=False, vectorize=True, timeout=1e-3)
+        res = contest(*cfs, show=False, vectorize=True, timeout=1e-3, verbose=self.verbose)
 
         print('Contest results:')
         print(res)
@@ -175,7 +179,7 @@ class TestContest(unittest.TestCase):
             return np.sum(A)
 
         cfs = [eyeArrAndSum, eyeListAndSum, eyeListAndSumDiag]
-        res = contest(*cfs, show=False, timeout=1e-3)
+        res = contest(*cfs, show=False, timeout=1e-3, verbose=self.verbose)
 
         print('Contest results:')
         print(res)
@@ -199,7 +203,9 @@ class TestContest(unittest.TestCase):
         assert np.shape(np.diag(A)) == (3,)
 
         cfs = [fSumAll, fSumDiag]
-        res = contest(*cfs, show=False, timeout=1e-3, input=input, name="sum_vs_sumdiag", title="sum() vs. diag(sum())")
+        res = contest(*cfs, show=False, timeout=1e-3, input=input,
+                      base=2, detail=2, start=8,
+                      name="sum_vs_sumdiag", title="sum() vs. diag(sum())", verbose=self.verbose)
 
         print('Contest results:')
         print(res)

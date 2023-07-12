@@ -41,11 +41,15 @@ class Value:
 
     def getpair(self, scale=None):
         (ts, u, p, sc) = getpair(self.value, self.unit, scale=scale)
+        assert ts == self.value
         return (ts*sc, f'{p}{u}')
 
     def get(self, scale=1):
         (v, u) = self.getpair(scale)
         return v
+
+    def __lt__(self, o):
+        return self.value < o.value
 
     def __call__(self, sc=1):
         return self.get(sc)

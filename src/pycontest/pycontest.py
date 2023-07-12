@@ -163,16 +163,17 @@ class Contest:
         self.timeout = kw.get('timeout', 1e-2)
         self.echo = kw.get('echo', False)
         self.verbose = kw.get('verbose', False)
+        self.base = kw.get('base', 10)
+        self.detail = kw.get('detail', 4)
+        self.start = kw.get('start', 1)
 
     def report(self, res):
         self.results += [res]
 
     def inputSizes(self, **kw):
-        detail = kw.get('detail', 4)
-        Ns = [int(math.floor(10 ** (i/detail))) for i in range(20*detail)]
+        Ns = [int(math.floor(self.base ** (i/self.detail))) for i in range(int(self.start*self.detail), int(100*self.detail))]
         Ns = list(dict.fromkeys(Ns).keys())
-        inputszs = kw.get('Ns', Ns)
-        return inputszs
+        return Ns
 
     def inputList(self, N):
         return ([random.random() for i in range(N)],), {}
@@ -218,11 +219,12 @@ class Contest:
         self.myio = MyIO(echo=sys.stdout if echo else None)
 
         scales = [1] + list(chain(*((1e6, 1e6) for i in range(3))))
-        colWidths = 5
+        colWidths = 6
+        namewidth = max(*[len(f) for f in self.names])+2
         self.table = tb = Table(
             fd=self.myio,
             headers=['N', 'R', 'R std', 'W', 'W std', 'C', 'C std'],
-            namehead='Func', namewidth=max(*[len(f) for f in self.names])+2,
+            namehead='Func', namewidth=namewidth,
             colPrec=colWidths, colScale=scales, unit='s')
         if verbose > 1:
             print(tb)
@@ -336,14 +338,16 @@ class Contest:
         fig, ax = plt.subplots()
 
         reltSums = [0]*ntests
+        reltSums2 = [0]*ntests
 
         for i in range(ntests):
 
             xplt, y, yerr = getSeries(i, rlist)
 
-            reltSums[i] = 1e-9 * sum(y) / sum(xplt)
+            reltSums[i] = Value(sum( [ y[i] / plsc / xplt[i] for i in range(len(xplt)) ] ) / len(xplt), 's')
+            reltSums2[i] = Value(sum(y) / plsc / sum(xplt), 's')
             print('x', xplt, 'mean', y, 'std', yerr)
-            print('xsum', sum(xplt), 'ysum', sum(y), 'rel', reltSums[i])
+            print('xsum', sum(xplt), 'ysum', sum(y), 'rel', reltSums[i], 'rel2', reltSums2[i])
             # reltSums[i] = sum([ x[i] * y[i] for i in range(len(xplt)]) / sum(x)
 
             y    = [ y[j]    / xplt[j] for j in range(len(xplt)) ]
@@ -355,7 +359,7 @@ class Contest:
             #        ax.set(xlim=(1, N+1), xticks=np.arange(1, N+1))
             #        ax.legend([h1], ['Results'])
 
-        print(fnames, reltSums)
+        print('reltimes', fnames, reltSums)
         plt.xscale('log')
         plt.yscale('log')
         plt.ylabel(f'Time ({aunit}) / N')
@@ -377,9 +381,12 @@ class Contest:
         perfwin = reltSums[winner]
         print(f'And the winner is cand. {winner}, {namewin}, ({self.funcs[winner]}) with {reltSums[winner]} s/N')
 
-        self.ranktb = Table(headers=('RelTime', 'Speedup'), colScale=(1e9, 1), unit=('s/N', ''), namehead='Name')
+        colWidths = 6
+        namewidth = max(*[len(f) for f in self.names])+2
+        colscale = 1e6
+        self.ranktb = Table(headers=('Rel. T', 'Rel. T 2', 'Speedup'), colScale=(colscale, colscale, 1), colPrec=colWidths, namewidth=namewidth, unit=('s/N', 's/N', ''), namehead='Func')
         for i in range(len(inds)):
-            self.ranktb.addRow((reltSums[inds[i]], reltSums[inds[i]] / perfwin), self.names[inds[i]])
+            self.ranktb.addRow((reltSums[inds[i]](), reltSums2[inds[i]](), reltSums[inds[i]]() / perfwin()), self.names[inds[i]])
 
         # plot
         fig, ax = plt.subplots()
@@ -434,7 +441,7 @@ class Contest:
         if self.verbose:
             print(f'Write TXT result table to {resTable}')
         print(f'{tb.gets()}', file=open(resTable, 'w'))
-        resTable = os.path.join(bdir, f'{self.name}-{ofname}.txt')
+        resTable = os.path.join(bdir, f'{self.name}-{ofname}.csv')
         if self.verbose:
             print(f'Write CSV result table to {resTable}')
         self.table.sep = ';'
