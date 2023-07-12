@@ -136,13 +136,13 @@ class TestContest(unittest.TestCase):
     def test_contest(self):
 
         cfs = [getElemFTestList(f) for f in [sin, cos, sqrt]]
-        contest(*cfs, plot=False, timeout=3e-2)
+        contest(*cfs, show=False, timeout=1e-3)
 
 
     def test_contest2(self):
 
         cfs = [sin, cos, sqrt]
-        res = contest(*cfs, plot=False, vectorize=True, timeout=3e-2)
+        res = contest(*cfs, show=False, vectorize=True, timeout=1e-3)
 
         print('Contest results:')
         print(res)
@@ -175,7 +175,7 @@ class TestContest(unittest.TestCase):
             return np.sum(A)
 
         cfs = [eyeArrAndSum, eyeListAndSum, eyeListAndSumDiag]
-        res = contest(*cfs, plot=False, timeout=3e-2)
+        res = contest(*cfs, show=False, timeout=1e-3)
 
         print('Contest results:')
         print(res)
@@ -184,14 +184,14 @@ class TestContest(unittest.TestCase):
     def test_contest4(self):
 
         def fSumAll(l):
-            return np.sum(A)
+            return np.sum(l)
 
         def fSumDiag(l):
             return np.sum(np.diag(l))
 
         def input(N):
             print(f'Gen. input for N={N}')
-            l = [0.0] * floor(sqrt(N))
+            l = np.random.rand(N)
             return (np.diag(l),),{}
 
         A = np.diag([1,2,3])
@@ -199,7 +199,7 @@ class TestContest(unittest.TestCase):
         assert np.shape(np.diag(A)) == (3,)
 
         cfs = [fSumAll, fSumDiag]
-        res = contest(*cfs, plot=False, timeout=3e-2, input=input)
+        res = contest(*cfs, show=False, timeout=1e-3, input=input, name="sum_vs_sumdiag", title="sum() vs. diag(sum())")
 
         print('Contest results:')
         print(res)

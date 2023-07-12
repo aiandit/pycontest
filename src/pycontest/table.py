@@ -28,10 +28,11 @@ class Table:
     sep = ';'
     _nchar = 0
 
-    def __init__(self, headers, fd=sys.stdout, namehead=None, colPrec=2, colScale=1, unit='s', sep=' ', format='var'):
+    def __init__(self, headers, fd=sys.stdout, namehead=None, namewidth=8, colPrec=2, colScale=1, unit='s', sep=' ', format='var'):
         self.fd = fd
         self.headers = tuple(headers)
         self.namehead = namehead
+        self.namewidth = namewidth
 
         self.sep = sep
         self.format = format
@@ -62,7 +63,7 @@ class Table:
         self.uHeaders = tuple('%s (%s)' %(h, u) for h, u in zip(self.headers, self.colUnits))
 
         if namehead:
-            self.colWidths = [8] + self.colWidths
+            self.colWidths = [self.namewidth] + self.colWidths
             self.headers = tuple([namehead] + list(self.uHeaders))
         else:
             self.headers = self.uHeaders

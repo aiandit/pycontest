@@ -51,6 +51,8 @@ class Vecprop:
         self.mean = Value(avg, unit)
         self.std = Value(sqrt(sum([(x - avg)**2 for x in v])) / (self.n - 1), unit)
 
+    def __repr__(self):
+        return f'{self.mean} +/-{self.std}'
 
 def getTestIteration(bfun):
     def inner(l):
@@ -154,6 +156,7 @@ class Contest:
 
     def __init__(self, **kw):
         self.name = kw.get('name', '')
+        self.title = kw.get('title', self.name)
         self.show = kw.get('show', True)
         self.print = kw.get('print', True)
         self.outdir = kw.get('outdir', '.')
@@ -192,6 +195,8 @@ class Contest:
         else:
             geninput = kw_.get('input', self.inputList)
 
+        reset = kw_.get('reset', lambda: 0)
+
         if verbose:
             print(f'input sizes = {inputszs[0]}, {inputszs[1]}, ..., {inputszs[-1]}')
             print(f'timeout = {Value(timeout,"s")}')
@@ -200,7 +205,7 @@ class Contest:
             self.names = list(funcs.keys())
             self.funcs = list(funcs.values())
         else:
-            self.names = [f.__qualname__ for f in funcs]
+            self.names = [f.__name__ for f in funcs]
             self.funcs = funcs
         self.args = inputszs
         self.results = []
@@ -213,10 +218,12 @@ class Contest:
         self.myio = MyIO(echo=sys.stdout if echo else None)
 
         scales = [1] + list(chain(*((1e6, 1e6) for i in range(3))))
+        colWidths = 5
         self.table = tb = Table(
             fd=self.myio,
             headers=['N', 'R', 'R std', 'W', 'W std', 'C', 'C std'],
-            namehead='Func', colPrec=5, colScale=scales, unit='s')
+            namehead='Func', namewidth=max(*[len(f) for f in self.names])+2,
+            colPrec=colWidths, colScale=scales, unit='s')
         if verbose > 1:
             print(tb)
         tb.writeHeader()
@@ -229,24 +236,30 @@ class Contest:
 
             psize = int(inputszs[inp])
             try:
-                args, kw = geninput(psize)
                 print(f'Obtain inputs for problem size {psize}:')
+                args, kw = geninput(psize)
                 displArgs(*args, **kw)
-            except BaseException as ex:
+            except ValueError as ex:
                 print(ex)
+                continue
+            except BaseException as ex:
+                print(f'Failed to run input() for N={psize}, stop')
                 break
+
 
             for fi, f in enumerate(self.funcs):
                 if self.bailout[fi]:
                     self.results[inp].append(None)
                     continue
                 gc.collect()
+                reset()
+
                 bm = Benchmark(print=False, vectorize=vectorize)
                 bm.bench(f, *args, **kw)
                 self.results[inp].append(bm)
                 #print('Contest results', self.results)
 
-                #print(tb)
+                # print(bm.vpr.mean(), 's')
 
 #            for i in range(ninputs):
 #                print(f'results for inp. {i}: {self.results[inp]}')
@@ -257,8 +270,9 @@ class Contest:
                 self.names[k])
               for k, t in enumerate(self.results[inp]) ]
 
+            meants = [f'{t.vpr}' if t is not None else math.inf for t in self.results[inp]]
             self.bailout = [t is None or t.vpr.mean() > timeout for t in self.results[inp]]
-            print('bail out', self.bailout)
+            print(f'Results step i={inp}, N={psize}: ', meants)
             if all(self.bailout):
                 break
 
@@ -314,8 +328,8 @@ class Contest:
         plt.ylabel(f'Time ({aunit})')
         plt.xlabel('Input size N')
         ax.legend()
-        plt.title(f'{self.name} - Runtimes over input size N')
-        self.plots += [plt]
+        plt.title(f'{self.title} - Runtimes')
+        self.plots += [fig]
 
 
         # plot
@@ -347,8 +361,8 @@ class Contest:
         plt.ylabel(f'Time ({aunit}) / N')
         plt.xlabel('Input size N')
         ax.legend()
-        plt.title(f'{self.name} - Relative runtimes per input size N over input size N')
-        self.plots += [plt]
+        plt.title(f'{self.title} - Relative runtimes per input size N')
+        self.plots += [fig]
 
 
         inds = list(range(len(reltSums)))
@@ -395,17 +409,16 @@ class Contest:
         plt.ylabel(f'Time / Time[{namewin}]')
         plt.xlabel('Input size N')
         ax.legend()
-        plt.title(f'{self.name} - Runtimes relative to best results over input size N')
-        self.plots += [plt]
+        plt.title(f'{self.title} - Runtimes relative to best results')
+        self.plots += [fig]
 
         names = ['plot-times', 'plot-reltimes-N', 'plot-reltimes-best']
         for i, p in enumerate(self.plots):
-            ofname = os.path.join(self.outdir, f'plt-{names[i]}.png')
+            ofname = os.path.join(self.outdir, f'plt-{self.name}-{names[i]}.png')
             print(f'Write PNG plot {i} to {ofname}')
             p.savefig(ofname)
 
-        if self.show:
-            plt.show()
+        plt.draw()
 
     def printTables(self):
         print('Performance results')
@@ -417,11 +430,11 @@ class Contest:
         bdir = self.outdir
         if not os.path.exists(bdir):
             os.mkdir(bdir)
-        resTable = os.path.join(bdir, f'{ofname}.txt')
+        resTable = os.path.join(bdir, f'{self.name}-{ofname}.txt')
         if self.verbose:
             print(f'Write TXT result table to {resTable}')
         print(f'{tb.gets()}', file=open(resTable, 'w'))
-        resTable = os.path.join(bdir, f'{ofname}.txt')
+        resTable = os.path.join(bdir, f'{self.name}-{ofname}.txt')
         if self.verbose:
             print(f'Write CSV result table to {resTable}')
         self.table.sep = ';'
@@ -438,9 +451,12 @@ def contest(*funcs, **kw):
     else:
         tbl = c.run(funcs, **kw)
     c.plot()
+    #pyplot.pause(1e-2)
     if c.print:
         c.printTables()
     c.writeResults()
+    if c.show:
+        plt.show()
     return tbl
 
 
