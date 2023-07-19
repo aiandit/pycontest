@@ -194,16 +194,16 @@ class TestContest(unittest.TestCase):
             return np.sum(np.diag(l))
 
         def input(N):
-            print(f'Gen. input for N={N}')
-            l = np.random.rand(N)
-            return (np.diag(l),),{}
+            Ns = int(math.ceil(math.sqrt(N)))
+            l = np.random.rand(Ns, Ns)
+            return (l,),{}
 
         A = np.diag([1,2,3])
         assert np.shape(A) == (3,3)
         assert np.shape(np.diag(A)) == (3,)
 
         cfs = [fSumAll, fSumDiag]
-        res = contest(*cfs, show=False, timeout=1e-3, input=input,
+        res = contest(*cfs, show=False, timeout=1e-4, input=input,
                       base=2, detail=2, start=8,
                       name="sum_vs_sumdiag", title="sum() vs. diag(sum())", verbose=self.verbose)
 
