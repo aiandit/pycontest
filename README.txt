@@ -37,7 +37,7 @@ and likewise a ranking table.
 1 Installation
 ══════════════
 
-  Install from source Github:
+  Install from Github source:
 
   ┌────
   │ pip install https://github.com/aiandit/pycontest/blob/master/requirements.txt

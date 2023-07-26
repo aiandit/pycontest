@@ -26,7 +26,7 @@ and likewise a ranking table.
 
 ** Installation
 
-Install from source Github:
+Install from Github source:
 
 #+begin_src sh
   pip install https://github.com/aiandit/pycontest/blob/master/requirements.txt
